@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 
 namespace FlightBookingAgent.McpServer.Tools;
 
-[McpServerToolType()]
+[McpServerToolType()]    
 public class FlightSearchTool
 {
     private readonly ILogger<FlightSearchTool> _logger;
@@ -15,10 +15,10 @@ public class FlightSearchTool
         _logger = logger;
     }
 
-    [McpServerTool, DescriptionAttribute("Search for available flights based on the provided criteria.")]
-    public async Task<IEnumerable<FlightOption>> ExecuteAsync(FlightSearchRequest request)
+    [McpServerTool, Description("Search for available flights based on the provided criteria.")]
+    public async Task<IEnumerable<FlightOption>> SearchFlights(FlightSearchRequest request)
     {
-        _logger.LogInformation("Searching flights from {Origin} to {Destination} on {Date}", 
+        _logger.LogInformation("Searching flights from {Origin} to {Destination} on {Date}",
             request.Origin, request.Destination, request.DepartureDate);
 
         // Simulate flight search with mock data

@@ -84,7 +84,7 @@ IMPORTANT RULES:
                     chatHistory,
                     new PromptExecutionSettings
                     {
-                        FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+                        FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),                         
                     },
                     _kernel);
 

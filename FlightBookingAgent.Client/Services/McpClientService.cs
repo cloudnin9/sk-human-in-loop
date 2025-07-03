@@ -11,6 +11,7 @@ namespace FlightBookingAgent.Client.Services;
 public class McpClientService
 {
     private const string BookingErrorMessageTemplate = "Error booking flight";
+    private const string SearchFlightsErrorMessageTemplate = "Error looking for flights";
     private const string BookingAttemptMessageTemplate = "Attempting to book flight {FlightNumber} for {Name}";
     private const string BookingFailedMessageTemplate = "Failed to book flight. Please try again.";
     private const string SearchingFlightsMessageTemplate = "Searching flights from {Origin} to {Destination} on {Date}";
@@ -27,64 +28,83 @@ public class McpClientService
     }
 
     [KernelFunction]
-    [Description("Search for available flights between two locations")]
-    public async Task<string> SearchFlightsAsync(
+    [Description("Search for available flights between two locations, departure date is required and return date should be provided if possible but is optional. Number of passengers will defaults to 1 when it is not explcitly provided.")]
+    public async Task<string> SearchFlights(
         [Description("Origin airport code")] string origin,
-        [Description("Destination airport code")] string destination, 
+        [Description("Destination airport code")] string destination,
         [Description("Departure date in YYYY-MM-DD format")] string departureDate,
-        [Description("Number of passengers")] int passengers = 1)
+        [Description("Optional Return date in YYYY-MM-DD format")] string? returnDate = null,
+        [Description("Optional Number of passengers which will default to 1 passenger")] int passengers = 1)
     {
         try
         {
             _logger.LogInformation(SearchingFlightsMessageTemplate, origin, destination, departureDate);
 
-            if (!DateOnly.TryParse(departureDate, out var date))
+            if (!DateOnly.TryParse(departureDate, out var dDate))
             {
                 return DateFormatValidationErrorMessageTemplate;
             }
 
-            var request = new FlightSearchRequest(origin, destination, date, null, passengers);
-
-            ModelContextProtocol.Protocol.CallToolResult result = await _mcpClient.CallToolAsync("search_flights", request.ToDictionary()!);
-            
-            if (result != null)
+            DateOnly? rDate = null;
+            if (!string.IsNullOrWhiteSpace(returnDate))
             {
-                var flights = JsonSerializer.Deserialize<IEnumerable<FlightOption>>(result.ToString()!);
-                if (flights?.Any() == true)
+                if (!DateOnly.TryParse(returnDate, out var parsedReturnDate))
                 {
-                    var flightList = flights.ToList();
-                    var response = new StringBuilder($"Found {flightList.Count} available flights:");
-                    response.AppendLine();
-                    response.AppendLine();
-                    
-                    for (int i = 0; i < flightList.Count; i++)
-                    {
-                        var flight = flightList[i];
-                        response.AppendLine($"{i + 1}. {flight.Airline} {flight.FlightNumber}");
-                        response.AppendLine($"   Route: {flight.Origin} → {flight.Destination}");
-                        response.AppendLine($"   Departure: {flight.DepartureTime.ToString(DateTimeDisplayFormat)}");
-                        response.AppendLine($"   Arrival: {flight.ArrivalTime.ToString(DateTimeDisplayFormat)}");
-                        response.AppendLine($"   Price: ${flight.Price:F2}");
-                        response.AppendLine($"   Aircraft: {flight.Aircraft}");
-                        response.AppendLine();
-                    }
-                    
-                    return response.ToString();
+                    return DateFormatValidationErrorMessageTemplate;
                 }
+                rDate = parsedReturnDate;
             }
-            
+
+            var request = new FlightSearchRequest(origin, destination, dDate, rDate, passengers);
+
+            ModelContextProtocol.Protocol.CallToolResult result = await _mcpClient.CallToolAsync("SearchFlights", new Dictionary<string, object?>
+            {
+                { "request", request }
+            });
+
+            if (result != null && result.IsError) throw new ApplicationException($"{(result.Content.FirstOrDefault() as ModelContextProtocol.Protocol.TextContentBlock)?.Text ?? "Unknown error"}");
+
+            var textContent = result!.Content
+                            .Where(c => c.Type == "text")
+                            .Cast<ModelContextProtocol.Protocol.TextContentBlock>()
+                            .Select(c => c.Text)
+                            .FirstOrDefault();
+
+            var flights = JsonSerializer.Deserialize<IEnumerable<FlightOption>>(textContent ?? "[]");
+
+            if (flights?.Any() == true)
+            {
+                var flightList = flights.ToList();
+                var response = new StringBuilder($"Found {flightList.Count} available flights:");
+                response.AppendLine();
+                response.AppendLine();
+
+                for (int i = 0; i < flightList.Count; i++)
+                {
+                    var flight = flightList[i];
+                    response.AppendLine($"{i + 1}. {flight.Airline} {flight.FlightNumber}");
+                    response.AppendLine($"   Route: {flight.Origin} → {flight.Destination}");
+                    response.AppendLine($"   Departure: {flight.DepartureTime.ToString(DateTimeDisplayFormat)}");
+                    response.AppendLine($"   Arrival: {flight.ArrivalTime.ToString(DateTimeDisplayFormat)}");
+                    response.AppendLine($"   Price: ${flight.Price:F2}");
+                    response.AppendLine($"   Aircraft: {flight.Aircraft}");
+                    response.AppendLine();
+                }
+
+                return response.ToString();
+            }
             return NoFlightsFoundMessageTemplate;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, BookingErrorMessageTemplate);
-            return $"{BookingErrorMessageTemplate}: {ex.Message}";
+            _logger.LogError(ex, SearchFlightsErrorMessageTemplate);
+            return $"{SearchFlightsErrorMessageTemplate}: {ex.Message}";
         }
     }
 
     [KernelFunction]
     [Description("Book a specific flight for a passenger")]
-    public async Task<string> BookFlightAsync(
+    public async Task<string> BookFlight(
         [Description("Flight number to book")] string flightNumber,
         [Description("Passenger full name")] string passengerName,
         [Description("Passenger email address")] string email,
@@ -100,7 +120,7 @@ public class McpClientService
                 FlightNumber: flightNumber,
                 Airline: "Demo Airline",
                 Origin: "JFK",
-                Destination: "LAX", 
+                Destination: "LAX",
                 DepartureTime: DateTime.Now.AddDays(7),
                 ArrivalTime: DateTime.Now.AddDays(7).AddHours(5),
                 Price: 299.99m,
@@ -108,8 +128,11 @@ public class McpClientService
             );
 
             var request = new BookingRequest(mockFlight, passengerName, email, phone);
-            var result = await _mcpClient.CallToolAsync("book_flight", request.ToDictionary());
-            
+            var result = await _mcpClient.CallToolAsync("BookFlights", new Dictionary<string, object?>
+            {
+                { "request", request }
+            });
+
             if (result != null)
             {
                 var confirmation = JsonSerializer.Deserialize<BookingConfirmation>(result.ToString()!);
@@ -127,7 +150,7 @@ public class McpClientService
                     """;
                 }
             }
-            
+
             return BookingFailedMessageTemplate;
         }
         catch (Exception ex)

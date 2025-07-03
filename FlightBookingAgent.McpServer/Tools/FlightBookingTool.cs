@@ -16,7 +16,7 @@ public class FlightBookingTool
     }
 
     [McpServerTool, Description("Flight booking with passenger details")]
-    public async Task<BookingConfirmation> ExecuteAsync(BookingRequest request)
+    public async Task<BookingConfirmation> BookFlight(BookingRequest request)
     {
         _logger.LogInformation("Booking flight {FlightNumber} for passenger {Name}", 
             request.Flight.FlightNumber, request.PassengerName);

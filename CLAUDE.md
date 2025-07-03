@@ -31,29 +31,35 @@ The system uses a distributed architecture where:
 # Build the entire solution
 dotnet build
 
-# Run MCP server (in one terminal)
-cd FlightBookingAgent.McpServer
-dotnet run
-
-# Run AI agent client (in another terminal)
+# Run AI agent client (it will start the server)
 cd FlightBookingAgent.Client
-dotnet run
+dotnet run --project FlightBookingAgent.Client -- "${PWD}/FlightBookingAgent.McpServer/bin/Debug/net9.0/FlightBookingAgent.McpServer"
 ```
 
 ### Development Workflow
 
 ```bash
-# Restore packages
+# Initial setup
 dotnet restore
 
-# Clean build outputs
-dotnet clean
+# Development cycle
+dotnet clean && dotnet build
 
-# Run with specific Ollama model
+# Testing
+dotnet test
+
+# Run with different configurations
 OLLAMA_MODEL=llama3.1 dotnet run --project FlightBookingAgent.Client
-
-# Run with custom Ollama endpoint
 OLLAMA_ENDPOINT=http://localhost:11434 dotnet run --project FlightBookingAgent.Client
+
+# Git workflow
+git add .
+git commit -m "Your commit message"
+git push origin main
+
+# Code formatting and analysis
+dotnet format
+dotnet build --verbosity normal
 ```
 
 ## Key Components

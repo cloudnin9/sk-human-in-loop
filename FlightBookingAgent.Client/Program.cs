@@ -10,7 +10,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddLogging(logging =>
 {
     logging.AddConsole();
-    logging.SetMinimumLevel(LogLevel.Information);
+    logging.SetMinimumLevel(LogLevel.Debug);
 });
 
 // Add Ollama Chat Completion (default endpoint is http://localhost:11434)
@@ -38,15 +38,16 @@ builder.Services.AddSingleton<KernelPluginCollection>((serviceProvider) =>
     ]
 );
 
+
+var dir = AppContext.BaseDirectory.Replace("FlightBookingAgent.Client", "FlightBookingAgent.McpServer");
+
 var clientTransport = new StdioClientTransport(new()
 {
     Name = "FlightBookingAgent.McpServer",
-    Command = "/home/naing/code/sk-human-in-loop/FlightBookingAgent.McpServer/bin/Debug/net9.0/FlightBookingAgent.McpServer",
-    // WorkingDirectory = AppContext.BaseDirectory,
-    // Arguments = { "run", "FlightBookingAgent.McpServer.dll" }
+    Command = args.Length == 0 ? $"{dir}/FlightBookingAgent.McpServer" : args[0]
 });
 
-builder.Services.AddSingleton(await McpClientFactory.CreateAsync(clientTransport));
+builder.Services.AddSingleton<IMcpClient>(await CreateMcpClient(clientTransport));
 
 // Finally, create the Kernel service with the service provider and plugin collection
 builder.Services.AddTransient((serviceProvider)=> {
@@ -57,6 +58,19 @@ builder.Services.AddTransient((serviceProvider)=> {
 var host = builder.Build();
 
 var flightService = host.Services.GetRequiredService<FlightBookingService>();
+
 await flightService.StartAsync();
 
 await host.RunAsync();
+
+
+async Task<IMcpClient> CreateMcpClient(StdioClientTransport clientTransport)
+{
+    var mcpClient = await McpClientFactory.CreateAsync(clientTransport);
+    var tools = await mcpClient.ListToolsAsync();
+    foreach (var tool in tools)
+    {
+        Console.WriteLine($"Connected to server with tools: {tool.Name}");
+    }
+    return mcpClient;
+}
