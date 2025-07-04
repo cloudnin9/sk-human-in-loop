@@ -1,3 +1,4 @@
+using FlightBookingAgent.Client.Filters;
 using FlightBookingAgent.Client.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -27,24 +28,27 @@ builder.Services.AddOllamaChatCompletion(
 
 
 // Add application services
+builder.Services.AddSingleton<IFlightCacheService, FlightCacheService>();
 builder.Services.AddSingleton<McpClientService>();
 builder.Services.AddSingleton<FlightBookingService>();
-builder.Services.AddSingleton<HumanInLoopService>();
+builder.Services.AddSingleton<BookFlightConfirmationFilter>();
 
 // Create the plugin collection (using the KernelPluginFactory to create plugins from objects)
-builder.Services.AddSingleton<KernelPluginCollection>((serviceProvider) => 
+builder.Services.AddSingleton<KernelPluginCollection>((serviceProvider) =>
     [
-        KernelPluginFactory.CreateFromObject(serviceProvider.GetRequiredService<McpClientService>())        
+        KernelPluginFactory.CreateFromObject(serviceProvider.GetRequiredService<McpClientService>())
     ]
 );
 
+var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "FlightBookingAgent.McpServer");
 
-var dir = AppContext.BaseDirectory.Replace("FlightBookingAgent.Client", "FlightBookingAgent.McpServer");
+var dir = new DirectoryInfo(path);
 
 var clientTransport = new StdioClientTransport(new()
 {
     Name = "FlightBookingAgent.McpServer",
-    Command = args.Length == 0 ? $"{dir}/FlightBookingAgent.McpServer" : args[0]
+    Command = "dotnet",
+    Arguments = ["run", "--project", $"{dir.FullName}/FlightBookingAgent.McpServer.csproj"],
 });
 
 builder.Services.AddSingleton<IMcpClient>(await CreateMcpClient(clientTransport));
@@ -52,7 +56,12 @@ builder.Services.AddSingleton<IMcpClient>(await CreateMcpClient(clientTransport)
 // Finally, create the Kernel service with the service provider and plugin collection
 builder.Services.AddTransient((serviceProvider)=> {
     KernelPluginCollection pluginCollection = serviceProvider.GetRequiredService<KernelPluginCollection>();
-    return new Kernel(serviceProvider, pluginCollection);
+    var kernel = new Kernel(serviceProvider, pluginCollection);
+    
+    // Add function invocation filters
+    kernel.FunctionInvocationFilters.Add(serviceProvider.GetRequiredService<BookFlightConfirmationFilter>());
+    
+    return kernel;
 });
 
 var host = builder.Build();

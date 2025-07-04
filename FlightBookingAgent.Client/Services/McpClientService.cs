@@ -5,6 +5,7 @@ using ModelContextProtocol.Client;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text;
+using ModelContextProtocol.Protocol;
 
 namespace FlightBookingAgent.Client.Services;
 
@@ -18,13 +19,19 @@ public class McpClientService
     private const string DateFormatValidationErrorMessageTemplate = "Invalid date format. Please use YYYY-MM-DD format.";
     private const string NoFlightsFoundMessageTemplate = "No flights found for the specified criteria.";
     private const string DateTimeDisplayFormat = "MMM dd, yyyy HH:mm";
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
     private readonly ILogger<McpClientService> _logger;
     private readonly IMcpClient _mcpClient;
+    private readonly IFlightCacheService _flightCacheService;
 
-    public McpClientService(ILogger<McpClientService> logger, IMcpClient mcpClient)
+    public McpClientService(ILogger<McpClientService> logger, IMcpClient mcpClient, IFlightCacheService flightCacheService)
     {
         _logger = logger;
         _mcpClient = mcpClient;
+        _flightCacheService = flightCacheService;
     }
 
     [KernelFunction]
@@ -40,7 +47,7 @@ public class McpClientService
         {
             _logger.LogInformation(SearchingFlightsMessageTemplate, origin, destination, departureDate);
 
-            if (!DateOnly.TryParse(departureDate, out var dDate))
+            if (!DateOnly.TryParse(departureDate, System.Globalization.CultureInfo.InvariantCulture, out var dDate))
             {
                 return DateFormatValidationErrorMessageTemplate;
             }
@@ -48,7 +55,7 @@ public class McpClientService
             DateOnly? rDate = null;
             if (!string.IsNullOrWhiteSpace(returnDate))
             {
-                if (!DateOnly.TryParse(returnDate, out var parsedReturnDate))
+                if (!DateOnly.TryParse(returnDate, System.Globalization.CultureInfo.InvariantCulture, out var parsedReturnDate))
                 {
                     return DateFormatValidationErrorMessageTemplate;
                 }
@@ -57,22 +64,26 @@ public class McpClientService
 
             var request = new FlightSearchRequest(origin, destination, dDate, rDate, passengers);
 
-            ModelContextProtocol.Protocol.CallToolResult result = await _mcpClient.CallToolAsync("SearchFlights", new Dictionary<string, object?>
+            CallToolResult result = await _mcpClient.CallToolAsync("SearchFlights", new Dictionary<string, object?>
             {
                 { "request", request }
             });
 
-            if (result != null && result.IsError) throw new ApplicationException($"{(result.Content.FirstOrDefault() as ModelContextProtocol.Protocol.TextContentBlock)?.Text ?? "Unknown error"}");
+            if (result != null && result.IsError) throw new InvalidOperationException($"{(result.Content.FirstOrDefault() as ModelContextProtocol.Protocol.TextContentBlock)?.Text ?? "Unknown error"}");
 
             var textContent = result!.Content
                             .Where(c => c.Type == "text")
-                            .Cast<ModelContextProtocol.Protocol.TextContentBlock>()
+                            .Cast<TextContentBlock>()
                             .Select(c => c.Text)
                             .FirstOrDefault();
 
-            var flights = JsonSerializer.Deserialize<IEnumerable<FlightOption>>(textContent ?? "[]");
+            var flights = JsonSerializer.Deserialize<FlightOption[]>(textContent ?? "[]", JsonOptions)!;
 
-            if (flights?.Any() == true)
+            // Cache the flight results
+            _flightCacheService.CacheFlights(flights);
+            _logger.LogInformation("Cached {Count} flights from search results", flights.Length);
+
+            if (flights.Length > 0)
             {
                 var flightList = flights.ToList();
                 var response = new StringBuilder($"Found {flightList.Count} available flights:");
@@ -114,32 +125,26 @@ public class McpClientService
         {
             _logger.LogInformation(BookingAttemptMessageTemplate, flightNumber, passengerName);
 
-            // Note: In a real implementation, you'd need to get the full flight details
-            // For this demo, we'll create a mock flight object
-            var mockFlight = new FlightOption(
-                FlightNumber: flightNumber,
-                Airline: "Demo Airline",
-                Origin: "JFK",
-                Destination: "LAX",
-                DepartureTime: DateTime.Now.AddDays(7),
-                ArrivalTime: DateTime.Now.AddDays(7).AddHours(5),
-                Price: 299.99m,
-                Aircraft: "Boeing 737"
-            );
+            // Look up flight details from cache
+            var selectedFlight = _flightCacheService.GetCachedFlight(flightNumber);
+            if (selectedFlight == null)
+            {
+                _logger.LogWarning("Flight {FlightNumber} not found in cache", flightNumber);
+                return $"Flight {flightNumber} not found. Please search for flights first.";
+            }
 
-            var request = new BookingRequest(mockFlight, passengerName, email, phone);
-            var result = await _mcpClient.CallToolAsync("BookFlights", new Dictionary<string, object?>
+            var request = new BookingRequest(selectedFlight, passengerName, email, phone);
+            var result = await _mcpClient.CallToolAsync("BookFlight", new Dictionary<string, object?>
             {
                 { "request", request }
             });
 
-            if (result != null)
+            var confirmation = JsonSerializer.Deserialize<BookingConfirmation>(result.Content.Cast<TextContentBlock>().Select(c => c.Text).FirstOrDefault()!, JsonOptions);
+
+            if (confirmation != null)
             {
-                var confirmation = JsonSerializer.Deserialize<BookingConfirmation>(result.ToString()!);
-                if (confirmation != null)
-                {
-                    return
-                    $"""
+                return
+                $"""
                     ✅ Flight booked successfully!
                     
                     Booking Reference: {confirmation.BookingReference}
@@ -148,10 +153,13 @@ public class McpClientService
                     Total Price: ${confirmation.TotalPrice:F2}
                     Booked At: {confirmation.BookedAt.ToString(DateTimeDisplayFormat)} UTC"
                     """;
-                }
             }
-
             return BookingFailedMessageTemplate;
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("cancelled by user"))
+        {
+            _logger.LogInformation(ex, "Flight booking cancelled by user for {FlightNumber}", flightNumber);
+            return "Flight booking was cancelled by user.";
         }
         catch (Exception ex)
         {

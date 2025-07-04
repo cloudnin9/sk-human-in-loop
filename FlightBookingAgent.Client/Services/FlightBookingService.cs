@@ -9,30 +9,23 @@ public class FlightBookingService
     private readonly ILogger<FlightBookingService> _logger;
     private readonly Kernel _kernel;
     private readonly IChatCompletionService _chatService;
-    private readonly McpClientService _mcpClient;
-    private readonly HumanInLoopService _humanInLoop;
 
     public FlightBookingService(
         ILogger<FlightBookingService> logger,
         Kernel kernel,
-        IChatCompletionService chatService,
-        McpClientService mcpClient,
-        HumanInLoopService humanInLoop)
+        IChatCompletionService chatService)
     {
         _logger = logger;
         _kernel = kernel;
         _chatService = chatService;
-        _mcpClient = mcpClient;
-        _humanInLoop = humanInLoop;
     }
 
     public async Task StartAsync()
     {
-        _logger.LogInformation("Flight Booking Agent with Human-in-the-Loop started");
+        _logger.LogInformation("Flight Booking Agent started");
         
         Console.WriteLine("🛫 Welcome to the AI Flight Booking Agent!");
         Console.WriteLine("This intelligent agent will help you search and book flights.");
-        Console.WriteLine("Human approval is required for all booking actions.");
         Console.WriteLine("\nType 'exit' to quit, or describe what you'd like to do.\n");
 
         var chatHistory = new ChatHistory();
@@ -43,11 +36,10 @@ You have access to these tools:
 - BookFlightAsync: Book a specific flight
 
 IMPORTANT RULES:
-1. Before booking any flight, you MUST get explicit human approval
-2. Always search for flights before attempting to book
-3. Provide clear, helpful information about flight options
-4. Be conversational and friendly
-5. Ask for missing information when needed (passenger details, dates, etc.)
+1. Always search for flights before attempting to book
+2. Provide clear, helpful information about flight options
+3. Be conversational and friendly
+4. Ask for missing information when needed (passenger details, dates, etc.)
 ");
 
         while (true)
@@ -65,20 +57,6 @@ IMPORTANT RULES:
             {
                 chatHistory.AddUserMessage(userInput);
 
-                // Check if this is a booking request that needs human approval
-                if (HumanInLoopService.ContainsBookingIntent(userInput))
-                {
-                    var shouldProceed = _humanInLoop.ShouldProceedWithActionAsync(
-                        "Flight Booking Request",
-                        $"User wants to: {userInput}\n\nThis will involve searching and potentially booking flights.");
-
-                    if (!shouldProceed)
-                    {
-                        Console.WriteLine("Assistant: I understand. Let me know if you'd like to do something else.\n");
-                        continue;
-                    }
-                }
-
                 // Get AI response with function calling
                 var response = await _chatService.GetChatMessageContentAsync(
                     chatHistory,
@@ -91,19 +69,6 @@ IMPORTANT RULES:
                 Console.WriteLine($"Assistant: {response.Content}\n");
                 chatHistory.AddAssistantMessage(response.Content ?? "");
 
-                // If the AI wants to book a flight, get additional human approval
-                if (HumanInLoopService.ContainsBookingIntent(response.Content ?? ""))
-                {
-                    var shouldBook = _humanInLoop.ShouldProceedWithActionAsync(
-                        "Final Booking Confirmation",
-                        "The AI is about to proceed with the flight booking. This action will charge your payment method.");
-
-                    if (!shouldBook)
-                    {
-                        Console.WriteLine("Assistant: Booking cancelled. Is there anything else I can help you with?\n");
-                        chatHistory.AddAssistantMessage("Booking cancelled per user request.");
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -111,7 +76,5 @@ IMPORTANT RULES:
                 Console.WriteLine($"Assistant: I encountered an error: {ex.Message}\nPlease try again.\n");
             }
         }
-    }
-
-   
+    }   
 }

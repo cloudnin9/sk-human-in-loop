@@ -1,0 +1,33 @@
+2025-07-04 12:39:07.210 +10:00 [INF] Server (stream) (FlightBookingAgent.McpServer) transport reading messages.
+2025-07-04 12:39:07.369 +10:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-04 12:39:07.371 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0) method 'initialize' request handler called.
+2025-07-04 12:39:07.372 +10:00 [INF] Hosting environment: Production
+2025-07-04 12:39:07.373 +10:00 [INF] Content root path: /home/naing/code/sk-human-in-loop/FlightBookingAgent.Client
+2025-07-04 12:39:07.378 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) method 'initialize' request handler completed.
+2025-07-04 12:39:07.431 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) method 'tools/list' request handler called.
+2025-07-04 12:39:07.442 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) method 'tools/list' request handler completed.
+2025-07-04 12:40:34.649 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) method 'tools/call' request handler called.
+2025-07-04 12:40:34.665 +10:00 [INF] Searching flights from SYD to SIN on "2025-12-25"
+2025-07-04 12:40:35.669 +10:00 [INF] Found 3 available flights
+2025-07-04 12:40:35.681 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) method 'tools/call' request handler completed.
+2025-07-04 12:42:17.955 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) method 'tools/call' request handler called.
+2025-07-04 12:42:17.959 +10:00 [WRN] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) method 'tools/call' request handler failed.
+ModelContextProtocol.McpException: Unknown tool: 'BookFlights'
+   at ModelContextProtocol.Server.McpServer.<>c.<<ConfigureTools>b__42_1>d.MoveNext()
+--- End of stack trace from previous location ---
+   at ModelContextProtocol.Server.McpServer.<>c__DisplayClass44_0`2.<<InvokeHandlerAsync>g__InvokeScopedAsync|0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at ModelContextProtocol.Server.McpServer.<>c__DisplayClass44_0`2.<<InvokeHandlerAsync>g__InvokeScopedAsync|0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at ModelContextProtocol.RequestHandlers.<>c__DisplayClass0_0`2.<<Set>b__0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at ModelContextProtocol.McpSession.HandleRequest(JsonRpcRequest request, CancellationToken cancellationToken)
+   at ModelContextProtocol.McpSession.HandleMessageAsync(JsonRpcMessage message, CancellationToken cancellationToken)
+   at ModelContextProtocol.McpSession.<>c__DisplayClass23_1.<<ProcessMessagesAsync>g__ProcessMessageAsync|0>d.MoveNext()
+2025-07-04 12:46:07.154 +10:00 [INF] Application is shutting down...
+2025-07-04 12:46:07.165 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) message processing canceled.
+2025-07-04 12:46:07.173 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) shutting down.
+2025-07-04 12:46:07.175 +10:00 [INF] Server (FlightBookingAgent.McpServer 1.0.0.0), Client (FlightBookingAgent.Client 1.0.0.0) shut down.
+2025-07-04 12:46:07.183 +10:00 [INF] Server (stream) (FlightBookingAgent.McpServer) shutting down.
+2025-07-04 12:46:07.187 +10:00 [INF] Server (stream) (FlightBookingAgent.McpServer) transport message reading canceled.
+2025-07-04 12:46:07.188 +10:00 [INF] Server (stream) (FlightBookingAgent.McpServer) shut down.
