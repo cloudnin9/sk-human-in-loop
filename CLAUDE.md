@@ -11,12 +11,15 @@ This is a .NET 9 solution implementing an AI-powered flight booking agent with h
 
 ## Architecture
 
-The system uses a distributed architecture where:
+The system uses a distributed architecture with intelligent caching and human-in-the-loop decision making:
 
-- The AI agent (client) communicates with the MCP server via STDIO transport
-- Semantic Kernel provides the AI orchestration with Ollama as the LLM provider
-- Human-in-the-loop interrupts occur at key decision points
-- MCP tools handle flight search and booking operations
+- **AI Agent (Client)**: Semantic Kernel-powered conversational agent with Ollama LLM running as a background hosted service
+- **MCP Server**: Standalone executable providing flight search and booking tools
+- **Communication**: STDIO transport between client and MCP server
+- **Caching Layer**: FlightCacheService provides thread-safe caching of flight search results
+- **Human-in-Loop**: BookFlightConfirmationFilter intercepts booking attempts for user approval
+- **Hosted Service**: FlightBookingService runs as BackgroundService with graceful shutdown support via IHostApplicationLifetime
+- **Dependency Injection**: Comprehensive DI setup with services, filters, and MCP client factory
 
 ## Development Commands
 
@@ -31,9 +34,14 @@ The system uses a distributed architecture where:
 # Build the entire solution
 dotnet build
 
-# Run AI agent client (it will start the server)
+# Run AI agent client (hosted service will start automatically)
 cd FlightBookingAgent.Client
 dotnet run --project FlightBookingAgent.Client -- "${PWD}/FlightBookingAgent.McpServer/bin/Debug/net9.0/FlightBookingAgent.McpServer"
+
+# Alternative: Run from solution root
+dotnet run --project FlightBookingAgent.Client -- FlightBookingAgent.McpServer/bin/Debug/net9.0/FlightBookingAgent.McpServer
+
+# Graceful shutdown: Press Ctrl+C to stop the hosted service or type 'exit' in the application
 ```
 
 ### Development Workflow
@@ -55,7 +63,7 @@ OLLAMA_ENDPOINT=http://localhost:11434 dotnet run --project FlightBookingAgent.C
 # Git workflow
 git add .
 git commit -m "Your commit message"
-git push origin main
+git push origin master
 
 # Code formatting and analysis
 dotnet format
@@ -66,20 +74,33 @@ dotnet build --verbosity normal
 
 ### MCP Server Tools
 
-- `FlightSearchTool` - Searches available flights with mock data
-- `FlightBookingTool` - Books selected flights and generates confirmations
+- `FlightSearchTool` - Searches available flights with mock data generation
+- `FlightBookingTool` - Books selected flights and generates booking confirmations
 
 ### AI Agent Services
 
-- `McpClientService` - Semantic Kernel functions that call MCP tools
-- `HumanInLoopService` - Handles human approval and input collection
-- `FlightBookingService` - Main orchestration with chat completion
+- `McpClientService` - Semantic Kernel functions that call MCP tools with intelligent caching
+- `FlightBookingService` - Background hosted service with conversational AI chat completion, cancellation support, and graceful application shutdown
+- `FlightCacheService` - Thread-safe flight data caching using ConcurrentDictionary
+
+### Function Invocation Filters
+
+- `BookFlightConfirmationFilter` - Implements human-in-the-loop pattern for flight booking confirmations
+
+### Models
+
+- `FlightSearchRequest` - Structured request for flight searches
+- `FlightOption` - Comprehensive flight details with booking information
+- `BookingRequest` - Structured request for flight bookings
+- `BookingConfirmation` - Booking confirmation response with details
 
 ### Human-in-Loop Patterns
 
-- Approval required before flight booking actions
-- User input collection for passenger details
-- Confirmation prompts for final booking decisions
+- `BookFlightConfirmationFilter` intercepts booking attempts and requires user approval
+- Detailed booking information display before confirmation
+- Graceful cancellation handling when user declines
+- User confirmation required before any booking actions execute
+- Application shutdown triggered by user typing 'exit' via `IHostApplicationLifetime.StopApplication()`
 
 ## Environment Variables
 

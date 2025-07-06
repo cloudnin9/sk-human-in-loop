@@ -30,7 +30,7 @@ builder.Services.AddOllamaChatCompletion(
 // Add application services
 builder.Services.AddSingleton<IFlightCacheService, FlightCacheService>();
 builder.Services.AddSingleton<McpClientService>();
-builder.Services.AddSingleton<FlightBookingService>();
+builder.Services.AddHostedService<FlightBookingService>();
 builder.Services.AddSingleton<BookFlightConfirmationFilter>();
 
 // Create the plugin collection (using the KernelPluginFactory to create plugins from objects)
@@ -65,10 +65,6 @@ builder.Services.AddTransient((serviceProvider)=> {
 });
 
 var host = builder.Build();
-
-var flightService = host.Services.GetRequiredService<FlightBookingService>();
-
-await flightService.StartAsync();
 
 await host.RunAsync();
 

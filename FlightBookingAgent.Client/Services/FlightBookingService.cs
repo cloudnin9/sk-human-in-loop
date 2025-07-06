@@ -1,26 +1,30 @@
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 
 namespace FlightBookingAgent.Client.Services;
 
-public class FlightBookingService
+public class FlightBookingService : BackgroundService
 {
     private readonly ILogger<FlightBookingService> _logger;
     private readonly Kernel _kernel;
     private readonly IChatCompletionService _chatService;
+    private readonly IHostApplicationLifetime _hostLifetime;
 
     public FlightBookingService(
         ILogger<FlightBookingService> logger,
         Kernel kernel,
-        IChatCompletionService chatService)
+        IChatCompletionService chatService,
+        IHostApplicationLifetime hostLifetime)
     {
         _logger = logger;
         _kernel = kernel;
         _chatService = chatService;
+        _hostLifetime = hostLifetime;
     }
 
-    public async Task StartAsync()
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Flight Booking Agent started");
         
@@ -42,14 +46,15 @@ IMPORTANT RULES:
 4. Ask for missing information when needed (passenger details, dates, etc.)
 ");
 
-        while (true)
+        while (!stoppingToken.IsCancellationRequested)
         {
             Console.Write("You: ");
             var userInput = Console.ReadLine();
             
-            if (string.IsNullOrWhiteSpace(userInput) || userInput.ToLower() == "exit")
+            if (string.IsNullOrWhiteSpace(userInput) || string.Equals(userInput, "exit", StringComparison.OrdinalIgnoreCase))
             {
                 Console.WriteLine("\n✈️ Thank you for using the Flight Booking Agent. Safe travels!");
+                _hostLifetime.StopApplication();
                 break;
             }
 
@@ -64,10 +69,11 @@ IMPORTANT RULES:
                     {
                         FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),                         
                     },
-                    _kernel);
+                    _kernel,
+                    stoppingToken);
 
                 Console.WriteLine($"Assistant: {response.Content}\n");
-                chatHistory.AddAssistantMessage(response.Content ?? "");
+                chatHistory.AddAssistantMessage(response.Content ?? string.Empty);
 
             }
             catch (Exception ex)
